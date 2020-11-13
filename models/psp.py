@@ -5,6 +5,7 @@ import matplotlib
 
 matplotlib.use('Agg')
 import torch
+import numpy as np
 from torch import nn
 from models.encoders import psp_encoders
 from models.stylegan2.model import Generator
@@ -101,25 +102,28 @@ class pSp(nn.Module):
 		else:
 			return images
 
-	def interpolate(self, x, x_target, resize=True, randomize_noise=True,):
-		_, result_latent = self.decoder([x],
-		                                     input_is_latent=False,
-		                                     randomize_noise=randomize_noise,
-		                                     return_latents=True)
-		_, result_latent_target = self.decoder([x_target],
-		                                     input_is_latent=False,
-		                                     randomize_noise=randomize_noise,
-		                                     return_latents=True)
+	def interpolate(self, x, x_target, resize=True, randomize_noise=True, step=5, batch_size=1):
+		codes = self.encoder(x)
+		codes_target = self.encoder(x_target) # shape [1, 18, 512]
 
+		lin = torch.linspace(0, 1, step).unsqueeze(1).unsqueeze(1)
 
+		all_codes = codes + lin * (codes_target - codes)
+		all_images = None
 
-		if resize:
-			images = self.face_pool(images)
+		for i in range(0, all_codes.shape[0], batch_size):
+			current_codes = all_codes[i:i+batch_size]
+			images = self.decoder(current_codes, input_is_latent=True, randomize_noise=randomize_noise)
 
-		if return_latents:
-			return images, result_latent
-		else:
-			return images
+			if resize:
+				images = self.face_pool(images).cpu().data.numpy()
+
+			if all_images:
+				all_images = np.concatenate([all_images, images], 0)
+			else:
+				all_images = images
+
+		return all_images
 
 	def set_opts(self, opts):
 		self.opts = opts
