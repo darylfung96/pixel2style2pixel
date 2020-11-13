@@ -101,6 +101,26 @@ class pSp(nn.Module):
 		else:
 			return images
 
+	def interpolate(self, x, x_target, resize=True, randomize_noise=True,):
+		_, result_latent = self.decoder([x],
+		                                     input_is_latent=False,
+		                                     randomize_noise=randomize_noise,
+		                                     return_latents=True)
+		_, result_latent_target = self.decoder([x_target],
+		                                     input_is_latent=False,
+		                                     randomize_noise=randomize_noise,
+		                                     return_latents=True)
+
+
+
+		if resize:
+			images = self.face_pool(images)
+
+		if return_latents:
+			return images, result_latent
+		else:
+			return images
+
 	def set_opts(self, opts):
 		self.opts = opts
 
