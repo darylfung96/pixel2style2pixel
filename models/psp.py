@@ -104,22 +104,30 @@ class pSp(nn.Module):
 
 	def interpolate(self, x, x_target, resize=True, randomize_noise=True, step=5, batch_size=1):
 		codes = self.encoder(x)
-		codes_target = self.encoder(x_target) # shape [1, 18, 512]
+		codes_target = self.encoder(x_target)  # shape [1, 18, 512]
 
-		lin = torch.linspace(0, 1, step).unsqueeze(1).unsqueeze(1)
+		if self.opts.start_from_latent_avg:
+			if self.opts.learn_in_w:
+				codes = codes + self.latent_avg.repeat(codes.shape[0], 1)
+				codes_target = codes_target + self.latent_avg.repeat(codes_target.shape[0], 1)
+			else:
+				codes = codes + self.latent_avg.repeat(codes.shape[0], 1, 1)
+				codes_target = codes_target + self.latent_avg.repeat(codes_target.shape[0], 1, 1)
+
+		lin = torch.linspace(0, 1, step).unsqueeze(1).unsqueeze(1).to("cuda")
 
 		all_codes = codes + lin * (codes_target - codes)
 		all_images = None
 
 		for i in range(0, all_codes.shape[0], batch_size):
 			current_codes = all_codes[i:i+batch_size]
-			images = self.decoder(current_codes, input_is_latent=True, randomize_noise=randomize_noise)
+			images, _ = self.decoder([current_codes], input_is_latent=True, randomize_noise=randomize_noise)
 
 			if resize:
-				images = self.face_pool(images).cpu().data.numpy()
+				images = self.face_pool(images)
 
-			if all_images:
-				all_images = np.concatenate([all_images, images], 0)
+			if all_images is not None:
+				all_images = torch.cat([all_images, images], 0)
 			else:
 				all_images = images
 
